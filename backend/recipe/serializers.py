@@ -43,7 +43,7 @@ class UserSubscriptionSerializer(UserSerializer):
 
     class Meta:
         model = User
-        fields = fields = (
+        fields = (
             'email', 'id', 'username', 'first_name', 'last_name',
             'is_subscribed', 'recipes', 'recipes_count', 'avatar'
         )
@@ -67,7 +67,7 @@ class IngredientInRecipeSerializer(serializers.ModelSerializer):
     id = serializers.PrimaryKeyRelatedField(
         queryset=Ingredient.objects.all(), source='ingredient'
     )
-    name = serializers.CharField(sourse='ingredient.name', read_only=True)
+    name = serializers.CharField(source='ingredient.name', read_only=True)
     measurement_unit = serializers.CharField(
         source='ingredient.measurement_unit', read_only=True
     )
@@ -83,7 +83,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = IngredientInRecipeSerializer(
         source='recipe_ingredients', many=True
     )
-    cooking_time = serializers.IntegerField(min_value=1, requred=True)
+    cooking_time = serializers.IntegerField(min_value=1, required=True)
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
     image = Base64ImageField()
@@ -102,7 +102,8 @@ class RecipeSerializer(serializers.ModelSerializer):
                 "validationerror"  # TODO добавь текста ошибки пжпжпж
             )
 
-        ingredient_ids = [ingredients['id'] for ingredient in ingredients]
+        ingredient_ids = [ingredient['ingredient'].id for ingredient
+                          in ingredients]
 
         if len(set(ingredient_ids)) != len(ingredient_ids):
             raise serializers.ValidationError(
@@ -112,7 +113,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         return attrs
 
     def get_is_favorited(self, obj):
-        request = self.context.get()
+        request = self.context.get('request')
         return (
             request
             and request.user.is_authenticated
@@ -122,7 +123,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         )
 
     def get_is_in_shopping_cart(self, obj):
-        request = self.context.get()
+        request = self.context.get('request')
         return (
             request
             and request.user.is_authenticated

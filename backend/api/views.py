@@ -1,15 +1,21 @@
 from rest_framework.viewsets import ModelViewSet
 from djoser.views import UserViewSet as DjoserUserViewSet
+from django.urls import reverse
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
+from django.db.models import Sum
+from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import action
 from rest_framework import permissions, status
 from rest_framework.response import Response
 
+from recipe.subfunctions import render_shopping_cart
 from recipe.models import (Ingredient, Recipe, Favorite,
                            ShoppingCart, RecipeIngredient)
 from user.models import Subscription, User
 from recipe.serializers import (IngredientSerializer, RecipeSerializer,
-                                UserSerializer)
+                                UserSerializer, AvatarSerializer,
+                                UserSubscriptionSerializer)
 from recipe.permissions import IsAuthorOrReadOnly
 
 
@@ -85,6 +91,47 @@ class RecipeViewSet(ModelViewSet):
             )
         get_object_or_404(model, user=user, recipe=recipe).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=True, methods=['post', 'delete'])
+    def shopping_cart(self, request, pk=None):
+        return self.handle_fav_or_cart(request, ShoppingCart, pk)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def favorite(self, request, pk=None):
+        return self.handle_fav_or_cart(request, Favorite, pk)
+
+    @action(detail=False, methods=['get'])
+    def download_shopping_cart(self, request):
+        user = request.user
+
+        ingredients = (
+            RecipeIngredient.objects
+            .filter(recipe__shoppingcart__user=user)
+            .values('ingredient__name',
+                    'ingredient__measurement_unit')
+            .annotate(total_amount=Sum('amount'))
+            .order_by('ingredient__name')
+        )
+
+        recipes = Recipe.objects.filter(
+            shoppingcart__user=user)
+
+        shopping_cart_text = render_shopping_cart(user, ingredients, recipes)
+
+        return FileResponse(
+            shopping_cart_text,
+            as_attachment=True,
+            filename='shopping_cart.txt',
+            content_type='text/plain'
+        )
+
+    @action(detail=True, methods=['get'], url_path='get-link')
+    def get_link(self, request, pk=None):
+        recipe = self.get_object()
+        short_url = request.build_absolute_uri(
+            reverse('short_link', args=[recipe.pk])
+        )
+        return Response({'short-link': short_url}, status=status.HTTP_200_OK)
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -92,3 +139,62 @@ class UserViewSet(DjoserUserViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
     lookup_field = 'id'
+
+    @action(detail=False, methods=['put', 'delete'], permission_classes=[
+        permissions.IsAuthenticated], url_path='me/avatar')
+    def avatar(self, request):
+        user = request.user
+
+        if request.method == 'DELETE':
+            if user.avatar:
+                user.avatar.delete()
+                user.avatar = None
+                user.save()
+                return Response(
+                    {'avatar': None},
+                    status=status.HTTP_204_NO_CONTENT)
+            raise ValidationError({'error': 'Аватар отсутствует'})
+
+        serializer = AvatarSerializer(user, data=request.data, partial=True)
+
+        if not serializer.is_valid():
+            raise ValidationError(serializer.errors)
+
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], permission_classes=[
+        permissions.IsAuthenticated])
+    def subscriptions(self, request):
+        subscriptions = request.user.subscribers.select_related(
+            'author').prefetch_related('author__recipes')
+
+        authors = [subscription.author for subscription in subscriptions]
+        page = self.paginate_queryset(authors)
+        serializer = UserSubscriptionSerializer(page, many=True, context={
+            'request': request})
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['post', 'delete'],
+            permission_classes=[permissions.IsAuthenticated])
+    def subscribe(self, request, id=None):
+        user = request.user
+        author = get_object_or_404(User, id=id)
+
+        if user == author:
+            raise ValidationError({'errors': 'Нельзя подписаться на себя'})
+
+        if request.method == 'POST':
+            subscription, created = Subscription.objects.get_or_create(
+                user=user,
+                author=author,
+            )
+
+            if not created:
+                raise ValidationError({'errors': 'Вы уже подписаны'})
+            return Response({'status': 'Подписка успешно добавлена'},
+                            status=status.HTTP_201_CREATED)
+
+        get_object_or_404(Subscription, user=user, author=author).delete()
+        return Response({'status': 'Вы успешно отписались'},
+                        status=status.HTTP_204_NO_CONTENT)

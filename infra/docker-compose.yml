@@ -2,13 +2,17 @@ services:
 
   db:
     image: postgres:17.2
+    container_name: db
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     env_file:
       - ./.env
+    networks:
+      - foodgram-network
   
   backend:
     build: ../backend
+    container_name: backend
     ports:
       - "8000:8000"
     volumes:
@@ -23,6 +27,7 @@ services:
 
   frontend:
     build: ../frontend
+    container_name: frontend
     volumes:
       - ../frontend/:/app/result_build/
     networks:
@@ -30,6 +35,7 @@ services:
 
   nginx:
     image: nginx:1.25.4-alpine
+    container_name: nginx
     ports:
       - "80:80"
     volumes:
