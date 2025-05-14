@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import RegexValidator
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 
@@ -12,9 +13,10 @@ class SiteUser(AbstractUser):
                               unique=True,
                               verbose_name='Электронная почта')
     username = models.CharField(max_length=150,
-                                blank=True,
-                                null=True,
-                                verbose_name='Имя пользователя')
+                                validators=[RegexValidator(
+                                    r'^[a-zA-Z0-9_.-]+$')],
+                                verbose_name='Имя пользователя',
+                                unique=True)
     first_name = models.CharField(max_length=150,
                                   verbose_name='Имя')
     last_name = models.CharField(max_length=150,

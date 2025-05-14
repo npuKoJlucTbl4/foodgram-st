@@ -26,13 +26,13 @@ class UserSerializer(DjoserUserSerializer):
             'is_subscribed', 'avatar'
         )
 
-    def get_is_subscribed(self, author):
+    def get_is_subscribed(self, obj):
         request = self.context.get('request')
         return (
             request
             and request.user.is_authenticated
             and Subscription.objects.filter(
-                user=request.user, author=author).exists()
+                user=request.user, author=obj).exists()
         )
 
 
@@ -99,7 +99,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         if not ingredients:
             raise serializers.ValidationError(
-                "validationerror"  # TODO добавь текста ошибки пжпжпж
+                "Должен быть указан хотя бы один ингредиент"
             )
 
         ingredient_ids = [ingredient['ingredient'].id for ingredient
@@ -107,7 +107,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         if len(set(ingredient_ids)) != len(ingredient_ids):
             raise serializers.ValidationError(
-                "validationerror"  # TODO добавь текста ошибки пжпжпж
+                "Ингредиенты не должны повторяться"
             )
 
         return attrs
@@ -148,7 +148,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         RecipeIngredient.objects.bulk_create(
             RecipeIngredient(
                 recipe=recipe,
-                ingredient_id=ingredient['id'],
+                ingredient=ingredient['ingredient'],
                 amount=ingredient['amount']
             )
             for ingredient in ingredients_data

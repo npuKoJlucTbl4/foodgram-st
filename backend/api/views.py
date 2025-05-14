@@ -23,6 +23,7 @@ class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'head', 'options']
     pagination_class = None
 
     def get_queryset(self):
@@ -140,20 +141,32 @@ class UserViewSet(DjoserUserViewSet):
     permission_classes = [permissions.AllowAny]
     lookup_field = 'id'
 
+    def get_permissions(self):
+        if self.action == 'create':
+            self.permission_classes = [permissions.AllowAny]
+        elif self.action in ['me', 'avatar', 'subscriptions', 'subscribe']:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+
     @action(detail=False, methods=['put', 'delete'], permission_classes=[
         permissions.IsAuthenticated], url_path='me/avatar')
     def avatar(self, request):
         user = request.user
 
         if request.method == 'DELETE':
-            if user.avatar:
+            if not user.avatar:
+                return Response(
+                    {'error': 'Аватар отсутствует'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
                 user.avatar.delete()
                 user.avatar = None
                 user.save()
-                return Response(
-                    {'avatar': None},
-                    status=status.HTTP_204_NO_CONTENT)
-            raise ValidationError({'error': 'Аватар отсутствует'})
+                return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if 'avatar' not in request.data:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
         serializer = AvatarSerializer(user, data=request.data, partial=True)
 
@@ -161,7 +174,7 @@ class UserViewSet(DjoserUserViewSet):
             raise ValidationError(serializer.errors)
 
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"avatar": user.avatar.url}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], permission_classes=[
         permissions.IsAuthenticated])
