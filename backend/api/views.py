@@ -142,7 +142,8 @@ class RecipeViewSet(ModelViewSet):
         recipe = self.get_object()
         short_url = request.build_absolute_uri(
             reverse('short_link', args=[recipe.pk])
-        )
+        ).split(':8000')
+        short_url = short_url[0]+short_url[1]
         return Response({'short-link': short_url}, status=status.HTTP_200_OK)
 
 
