@@ -49,11 +49,20 @@ class UserSubscriptionSerializer(UserSerializer):
         )
 
     def get_recipes(self, author):
-        return RecipeSerializer(
-            author.recipes.all()[:int(self.context.get('request').GET.get(
-                'recipes_limit', 10**10))],
-            many=True, context=self.context
+        request = self.context.get('request')
+        limit = request.query_params.get('recipes_limit')
+
+        recipes = author.recipes.all()
+        if limit is not None:
+            try:
+                recipes = recipes[:int(limit)]
+            except (ValueError, TypeError):
+                pass
+
+        return RecipeShortSerializer(
+            recipes, many=True, context=self.context
         ).data
+
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -86,7 +95,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     cooking_time = serializers.IntegerField(min_value=1, required=True)
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
-    image = Base64ImageField()
+    image = Base64ImageField(required=True, allow_null=False)
 
     class Meta:
         model = Recipe
@@ -96,6 +105,12 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         ingredients = attrs.get('recipe_ingredients', [])
+        image = attrs.get('image')
+        
+        if not image:
+            raise serializers.ValidationError(
+            {"image": "Изображение обязательно для загрузки"}
+            )
 
         if not ingredients:
             raise serializers.ValidationError(
@@ -153,3 +168,12 @@ class RecipeSerializer(serializers.ModelSerializer):
             )
             for ingredient in ingredients_data
         )
+
+
+class RecipeShortSerializer(serializers.ModelSerializer):
+    image = Base64ImageField()
+
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
+        

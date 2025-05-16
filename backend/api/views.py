@@ -4,7 +4,8 @@ from django.urls import reverse
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import (ValidationError,
+                                       NotAuthenticated)
 from rest_framework.decorators import action
 from rest_framework import permissions, status
 from rest_framework.response import Response
@@ -20,7 +21,6 @@ from recipe.permissions import IsAuthorOrReadOnly
 
 
 class IngredientViewSet(ModelViewSet):
-    queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = [permissions.AllowAny]
     http_method_names = ['get', 'head', 'options']
@@ -28,9 +28,9 @@ class IngredientViewSet(ModelViewSet):
 
     def get_queryset(self):
         queryset = Ingredient.objects.all().order_by('name')
-        name = self.request.query_params.get('name')
+        name = self.request.query_params.get('name', '').strip()
         if name:
-            queryset = queryset.filter(name__icontains=name)
+            queryset = queryset.filter(name__istartswith=name)
         return queryset
 
 
@@ -73,6 +73,8 @@ class RecipeViewSet(ModelViewSet):
         return queryset.distinct()
 
     def perform_create(self, serializer):
+        if not self.request.user.is_authenticated:
+            raise NotAuthenticated('Пользователь должен быть авторизирован')
         return serializer.save(author=self.request.user)
 
     @staticmethod
@@ -80,11 +82,20 @@ class RecipeViewSet(ModelViewSet):
         recipe = get_object_or_404(Recipe, id=pk)
         user = request.user
 
+        if not user.is_authenticated:
+            return Response({'status':'Пользователь должен быть авторизирован'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
         if request.method == "POST":
             _, created = model.objects.get_or_create(user=user, recipe=recipe)
             if created:
                 return Response(
-                    {'status': 'Рецепт добавлен'},
+                    {
+                        'id': recipe.id,
+                        'name': recipe.name,
+                        'image': request.build_absolute_uri(recipe.image.url)
+                        if recipe.image else None,
+                        'cooking_time': recipe.cooking_time},
                     status=status.HTTP_201_CREATED)
             return Response(
                 {'status': 'Рецепт уже есть в списке'},
@@ -198,16 +209,32 @@ class UserViewSet(DjoserUserViewSet):
             raise ValidationError({'errors': 'Нельзя подписаться на себя'})
 
         if request.method == 'POST':
-            subscription, created = Subscription.objects.get_or_create(
+            _, created = Subscription.objects.get_or_create(
                 user=user,
                 author=author,
             )
 
             if not created:
                 raise ValidationError({'errors': 'Вы уже подписаны'})
-            return Response({'status': 'Подписка успешно добавлена'},
-                            status=status.HTTP_201_CREATED)
 
-        get_object_or_404(Subscription, user=user, author=author).delete()
-        return Response({'status': 'Вы успешно отписались'},
-                        status=status.HTTP_204_NO_CONTENT)
+            serializer = UserSubscriptionSerializer(
+                author,
+                context={'request': request}
+            )
+
+            return Response(serializer.data,
+                            status=status.HTTP_201_CREATED)
+        
+        if request.method == 'DELETE':
+            try:
+                subscription = Subscription.objects.get(user=user, author=author)
+                subscription.delete()
+                return Response(
+                    {'status': 'Вы успешно отписались'},
+                    status=status.HTTP_204_NO_CONTENT
+                )
+            except Subscription.DoesNotExist:
+                raise ValidationError(
+                    {'error': 'Вы не подписаны на этого пользователя'},
+                    code=status.HTTP_400_BAD_REQUEST
+                )
