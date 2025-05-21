@@ -133,7 +133,7 @@ class RecipeViewSet(ModelViewSet):
         return FileResponse(
             shopping_cart_text,
             as_attachment=True,
-            filename='shopping_cart.txt',
+            filename='shopping_list.txt',
             content_type='text/plain'
         )
 

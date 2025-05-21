@@ -106,10 +106,10 @@ class RecipeSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         ingredients = attrs.get('recipe_ingredients', [])
         image = attrs.get('image')
-        
+
         if not image:
             raise serializers.ValidationError(
-            {"image": "Изображение обязательно для загрузки"}
+                {"image": "Изображение обязательно для загрузки"}
             )
 
         if not ingredients:
@@ -176,4 +176,3 @@ class RecipeShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
-        

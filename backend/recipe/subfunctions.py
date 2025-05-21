@@ -1,4 +1,5 @@
 from django.utils.timezone import now
+from io import BytesIO
 
 
 def render_shopping_cart(user, ingredients, recipes):
@@ -17,10 +18,15 @@ def render_shopping_cart(user, ingredients, recipes):
         for recipe in recipes
     ]
 
-    return '\n'.join([
+    content = '\n'.join([
         shopping_cart_header,
         'Продукты:\n',
         *ingredient_lines,
         '\nРецепты с этими продуктами:\n',
         *recipe_lines,
     ])
+
+    buffer = BytesIO()
+    buffer.write(content.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
