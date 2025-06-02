@@ -36,7 +36,7 @@ git clone https://github.com/npuKoJlucTbl4/foodgram-st.git
 ```
 - Перейдите в директорию infra и создайте там файл окружения .env
 ```bash
-cd infra
+cd \[папка_с_проектом\]/foodgram-st/infra
 touch .env
 ```
 - При помощи nano (или другой утилиты) заполните созданный файл
@@ -65,6 +65,8 @@ docker-compose run backend python manage.py createsuperuser
 docker-compose exec backend python manage.py import_ingredients
 ```
 ## Адреса приложения
-- Веб-интерфейс: http://localhost/
-- API документация: http://localhost/api/docs/
-- Админка: http://localhost/admin/
+- [Веб-интерфейс](http://localhost/)
+- [API документация](http://localhost/api/docs/)
+- [Админка](http://localhost/admin/)
+
+## Автор
