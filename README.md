@@ -36,7 +36,7 @@ git clone https://github.com/npuKoJlucTbl4/foodgram-st.git
 ```
 - Перейдите в директорию infra и создайте там файл окружения .env
 ```bash
-cd \[папка_с_проектом\]/foodgram-st/infra
+cd [папка_с_проектом]/foodgram-st/infra
 touch .env
 ```
 - При помощи nano (или другой утилиты) заполните созданный файл
